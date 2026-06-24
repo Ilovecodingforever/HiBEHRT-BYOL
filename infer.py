@@ -1,3 +1,4 @@
+import json
 from utils.yaml_act import yaml_load, yaml_save
 from utils.arg_parse import arg_paser
 import os
@@ -26,7 +27,7 @@ def main():
         params['train_params'], params['eval_params'], params['callback_params']
 
     # set up logging and save updated config file
-    save_path = args.params if args.save_path is None else args.save_path
+    save_path = os.path.splitext(args.params)[0] if args.save_path is None else args.save_path
     if not os.path.exists(save_path):
         os.makedirs(save_path)
     yaml_save(params, save_path + '/config.yaml')
@@ -54,13 +55,21 @@ def main():
 
     model = model(model_params)
 
-    # set up training environment
-    env_params.update({'logger': logger})
-    env_params.update({'default_root_dir': os.path.join(save_path, 'checkpoint')})
+    seed = int(env_params.get('seed', params.get('seed', 42)))
+    pl.seed_everything(seed, workers=True)
+    print('seed:', seed)
 
-    trainer = pl.Trainer(**env_params)
+    # set up training environment
+    trainer_env_params = dict(env_params)
+    trainer_env_params.pop('seed', None)
+    trainer_env_params.update({'logger': logger})
+    trainer_env_params.update({'default_root_dir': os.path.join(save_path, 'checkpoint')})
+
+    trainer = pl.Trainer(**trainer_env_params)
 
     results = trainer.test(model, evalloader, ckpt_path=args.load_path)
+    with open(os.path.join(save_path, 'results.json'), 'w') as handle:
+        json.dump(results, handle, indent=2)
     print(results)
 
 if __name__ == "__main__":

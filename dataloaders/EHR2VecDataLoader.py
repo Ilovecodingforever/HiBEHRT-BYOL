@@ -3,6 +3,25 @@ import torch
 from dataloaders import transform
 from torchvision import transforms
 import pandas as pd
+import numpy as np
+import pyarrow.parquet as pq
+
+
+def read_nested_parquet(path):
+    """Load parquet data in a way that preserves nested list columns on older PyArrow stacks."""
+    parquet_file = pq.ParquetFile(path)
+    columns = None
+    for batch in parquet_file.iter_batches():
+        if columns is None:
+            columns = {name: [] for name in batch.schema.names}
+        for name, values in zip(batch.schema.names, batch.columns):
+            columns[name].extend(values.to_pylist())
+    return pd.DataFrame(columns or {})
+
+
+def load_hibehrt_dataframe(path):
+    """Load HiBEHRT adapter outputs from pickle when available, else parquet."""
+    return pd.read_pickle(path) if str(path).endswith((".pkl", ".pickle")) else read_nested_parquet(path)
 
 
 def weightedSampling(data, classes, split):
@@ -61,12 +80,12 @@ class EHR2VecDset(Dataset):
 
         sample = self._compose(sample)
 
-        return {'code': torch.LongTensor(sample['code']),
-                'age': torch.LongTensor(sample['age']),
-                'seg': torch.LongTensor(sample['seg']),
-                'position': torch.LongTensor(sample['position']),
-                'att_mask': torch.LongTensor(sample['att_mask']),
-                'h_att_mask': torch.LongTensor(sample['h_att_mask']),
+        return {'code': torch.LongTensor(np.asarray(sample['code'])),
+                'age': torch.LongTensor(np.asarray(sample['age'])),
+                'seg': torch.LongTensor(np.asarray(sample['seg'])),
+                'position': torch.LongTensor(np.asarray(sample['position'])),
+                'att_mask': torch.LongTensor(np.asarray(sample['att_mask'])),
+                'h_att_mask': torch.LongTensor(np.asarray(sample['h_att_mask'])),
                 'label': torch.FloatTensor([sample['label']])}
 
     def __len__(self):
@@ -75,40 +94,40 @@ class EHR2VecDset(Dataset):
 
 def EHR2VecDataLoader(params):
     if params['data_path'] is not None:
-        data = pd.read_parquet(params['data_path'])
+        data = load_hibehrt_dataframe(params['data_path'])
         if 'fraction' in params:
-            data = data.sample(frac=params['fraction']).reset_index(drop=True)
+            data = data.sample(frac=params['fraction'], random_state=0).reset_index(drop=True)
 
-        if params['selection'] is not None:
+        if params.get('selection') is not None:
             # select patients who have at least one records in the selection list
-            for key in params['selection']:
+            for key in params.get('selection'):
                 data[key] = data.code.apply(lambda x: sum([1 for each in x if each[0:3] == key]))
                 data = data[data[key] > 1]
             data = data.reset_index(drop=True)
 
-        if params['len_range'] is not None:
+        if params.get('len_range') is not None:
             data['len'] = data.code.apply(lambda x: len(x))
-            data = data[data['len']>params['len_range']['min_len']]
-            data = data[data['len']<params['len_range']['max_len']]
+            data = data[data['len']>params.get('len_range')['min_len']]
+            data = data[data['len']<params.get('len_range')['max_len']]
             data = data.reset_index(drop=True)
 
-        if params['year_range'] is not None:
+        if params.get('year_range') is not None:
             data['duration'] = data.age.apply(lambda x: int(x[-1])-int(x[0]))
-            data = data[data['duration'] > params['year_range']['min_year']]
-            data = data[data['duration'] < params['year_range']['max_year']]
+            data = data[data['duration'] > params.get('year_range')['min_year']]
+            data = data[data['duration'] < params.get('year_range')['max_year']]
             data = data.reset_index(drop=True)
 
-        if params['age_range'] is not None:
+        if params.get('age_range') is not None:
             data['baseline_age'] = data.age.apply(lambda x: int(x[-1]))
-            data = data[data['baseline_age'] > params['age_range']['min_age']]
-            data = data[data['baseline_age'] < params['age_range']['max_age']]
+            data = data[data['baseline_age'] > params.get('age_range')['min_age']]
+            data = data[data['baseline_age'] < params.get('age_range')['max_age']]
             data = data.reset_index(drop=True)
 
-        if params['positive_percent'] is not None:
+        if params.get('positive_percent') is not None:
             pos = data[data['label'] == 1]
             neg = data[data['label'] == 0]
 
-            num_pos = int((len(neg) * params['positive_percent'])/(1 - params['positive_percent']))
+            num_pos = int((len(neg) * params.get('positive_percent'))/(1 - params.get('positive_percent')))
             pos = pos.sample(n=num_pos)
 
             data = pd.concat([pos, neg])

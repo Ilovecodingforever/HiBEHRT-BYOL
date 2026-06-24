@@ -11,7 +11,7 @@ def arg_paser():
     parser.add_argument("--save_path", default=None, help='path to save all results')
 
     # update able params
-    parser.add_argument("--update_params", default={}, type=yaml.load, help='Update the parameters dictionary.')
+    parser.add_argument("--update_params", default={}, type=yaml.safe_load, help='Update the parameters dictionary.')
 
     parser.add_argument('--load_path', default=None)
 

@@ -5,6 +5,11 @@ from torchvision import transforms
 import pandas as pd
 
 
+def load_hibehrt_dataframe(path):
+    """Load HiBEHRT adapter outputs from pickle when available, else parquet."""
+    return pd.read_pickle(path) if str(path).endswith((".pkl", ".pickle")) else pd.read_parquet(path)
+
+
 def weightedSampling(data, classes, split):
     def make_weights_for_balanced_classes(sampled, nclasses, split):
         count = sampled.label.value_counts().to_list()
@@ -75,7 +80,7 @@ class EHR2VecDset(Dataset):
 
 def BEHRTDataLoader(params):
     if params['data_path'] is not None:
-        data = pd.read_parquet(params['data_path'])
+        data = load_hibehrt_dataframe(params['data_path'])
         if 'fraction' in params:
             data = data.sample(frac=params['fraction']).reset_index(drop=True)
 

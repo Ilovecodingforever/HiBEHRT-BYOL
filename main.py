@@ -25,8 +25,12 @@ def main():
         params['env_params'], params['base_params'], \
         params['train_params'], params['eval_params'], params['callback_params']
 
+    seed = int(env_params.get('seed', params.get('seed', 42)))
+    pl.seed_everything(seed, workers=True)
+    print('seed:', seed)
+
     # set up logging and save updated config file
-    save_path = args.params if args.save_path is None else args.save_path
+    save_path = os.path.splitext(args.params)[0] if args.save_path is None else args.save_path
     if not os.path.exists(save_path):
         os.makedirs(save_path)
     yaml_save(params, save_path + '/config.yaml')
@@ -55,16 +59,18 @@ def main():
     model = model(model_params)
 
     # set up training environment
-    env_params.update({'logger': logger})
-    env_params.update({'default_root_dir': os.path.join(save_path, 'checkpoint')})
+    trainer_env_params = dict(env_params)
+    trainer_env_params.pop('seed', None)
+    trainer_env_params.update({'logger': logger})
+    trainer_env_params.update({'default_root_dir': os.path.join(save_path, 'checkpoint')})
 
     callback_params.update({'dirpath': save_path})
     checkpoint_callback = ModelCheckpoint(**callback_params)
     lr_monitor = LearningRateMonitor(logging_interval='step')
 
     callbacks = [lr_monitor, checkpoint_callback]
-    env_params.update({'callbacks': callbacks})
-    trainer = pl.Trainer(**env_params)
+    trainer_env_params.update({'callbacks': callbacks})
+    trainer = pl.Trainer(**trainer_env_params)
 
     # train and evaluate model
     trainer.fit(model, trainloader, evalloader)

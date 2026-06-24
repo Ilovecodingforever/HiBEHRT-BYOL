@@ -144,8 +144,9 @@ class BEHRT2Vec(pl.LightningModule):
             label = torch.cat(self.target_list, dim=0).view(-1)
             pred = torch.cat(self.pred_list, dim=0).view(-1)
 
-            auprc_score = average_precision(pred, target=label)
-            auroc_score = auroc(pred, label)
+            label_metric = label.type(torch.LongTensor)
+            auprc_score = average_precision(pred, target=label_metric)
+            auroc_score = auroc(pred, label_metric)
             nll = self.nll(pred, label)
 
             print('epoch : {} AUROC: {} AUPRC: {} NLL: {}'.format(self.current_epoch, auroc_score, auprc_score, nll))
@@ -159,13 +160,18 @@ class BEHRT2Vec(pl.LightningModule):
         label = torch.cat(self.target_list, dim=0).view(-1)
         pred = torch.cat(self.pred_list, dim=0).view(-1)
 
-        PRC = average_precision(pred, target=label)
-        ROC = auroc(pred, label)
+        label_metric = label.type(torch.LongTensor)
+        PRC = average_precision(pred, target=label_metric)
+        ROC = auroc(pred, label_metric)
         nll = self.nll(pred, label)
 
         print('average_precision', PRC)
         print('auroc', ROC)
         print('nll', nll)
+
+        self.log('test_average_precision', PRC)
+        self.log('test_auroc', ROC)
+        self.log('test_nll', nll)
 
         return {'auprc': PRC, 'auroc': ROC, 'nll': nll}
 
