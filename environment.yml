@@ -1,4 +1,4 @@
-name: ml_hibehrt
+name: /home/mingzhul/projects/Simultaneous-EHR/repos/HiBEHRT-BYOL/.conda/ml_hibehrt
 channels:
   - defaults
 dependencies:
@@ -98,3 +98,4 @@ dependencies:
       - werkzeug==3.0.6
       - yarl==1.15.2
       - zipp==3.20.2
+prefix: /home/mingzhul/projects/Simultaneous-EHR/repos/HiBEHRT-BYOL/.conda/ml_hibehrt
